@@ -28,10 +28,13 @@ button { cursor:pointer; }
 .options label:hover { background:#f0f4ff; border-color:#1e3a8a; }
 .correct { background:#e8fce8; border-color:green !important; }
 .wrong { background:#ffe8e8; border-color:red !important; }
-.question-nav { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:15px; }
+.question-nav { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:15px; max-height:150px; overflow-y:auto; transition:0.3s; }
+.question-nav.hidden { max-height:0; margin:0; padding:0; overflow:hidden; }
 .question-nav button { width:36px; height:36px; border-radius:50%; border:1px solid #ccc; }
 .question-nav button.active { border:2px solid #1b4332; }
 .question-nav button.answered { background:#1b4332; color:#fff; }
+.toggle-nav-btn { background:#1b4332; color:#fff; border:none; border-radius:6px; padding:8px 0; margin-bottom:8px; font-weight:600; cursor:pointer; transition:0.3s; }
+.toggle-nav-btn:hover { background:#14532d; }
 .quiz-footer { display:flex; justify-content:space-between; margin-top:20px; }
 .quiz-footer button { flex:1; margin:0 5px; padding:10px; border:none; border-radius:8px; background:#1E90FF; color:white; }
 #result-section { margin-top:20px; padding:15px; border-radius:8px; background:#f9f9f9; display:none; }
@@ -54,6 +57,7 @@ button { cursor:pointer; }
         <span id="not-answered">Not answered: 0</span>
         <span>⏱️ <span id="timer">00:00</span></span>
       </div>
+      <button class="toggle-nav-btn" onclick="toggleNav()">🔽 Show/Hide Questions</button>
       <div class="question-nav" id="question-nav"></div>
       <div id="question-container"></div>
       <div id="result-section"></div>
@@ -67,44 +71,51 @@ button { cursor:pointer; }
 </div>
 
 <script>
-// ================= CONFIG =================
-const SHEET_JSON_URL = "https://docs.google.com/spreadsheets/d/1qRFUQ_S_7pK_mb-cZb30CwcN6Gkb91A25Eq2JMefZNo/gviz/tq?tqx=out:json"; // Replace YOUR_SHEET_ID
-//https://docs.google.com/spreadsheets/d/ 1qRFUQ_S_7pK_mb-cZb30CwcN6Gkb91A25Eq2JMefZNo /edit?usp=drivesdk
+const SHEET_ID = "1qRFUQ_S_7pK_mbcZb30CwcN6Gkb91A25Eq2JMefZNo"; // Your Google Sheet ID
+const SHEET_NAME = "Quiz1"; // <-- Add your sheet name here
 let questions=[], current=0, answers=[], submitted=false, timeLeft=0, timerInterval;
 
 // ============== LOAD QUESTIONS FROM SHEET =================
 async function loadQuestions(){
-  try {
-    const res = await fetch(SHEET_JSON_URL);
+  try{
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${SHEET_NAME}&tqx=out:json`;
+    const res = await fetch(url);
     let text = await res.text();
     text = text.substring(text.indexOf("{"), text.lastIndexOf("}")+1);
     const data = JSON.parse(text);
     questions = data.table.rows.map(r=>{
       return {
-        q: r.c[0].v,
-        options: [r.c[1].v, r.c[2].v, r.c[3].v, r.c[4].v],
-        answerId: r.c[5].v
+        q: r.c[0]?.v || "",
+        options: [
+          r.c[1]?.v || "",
+          r.c[2]?.v || "",
+          r.c[3]?.v || "",
+          r.c[4]?.v || ""
+        ],
+        answerId: r.c[5]?.v || 0
       };
     });
     answers = Array(questions.length).fill(null);
-    timeLeft = questions.length * 60;
-    document.getElementById("user-form").style.display="block";
-  } catch(e) {
+    timeLeft = questions.length*60;
+  } catch(e){
     console.error("Error loading questions:", e);
-    alert("Failed to load questions. Check sheet URL or network.");
+    alert("Failed to load questions. Check your sheet name and network.");
   }
 }
 
-window.onload = loadQuestions;
-
-// ============== QUIZ FUNCTIONS =================
+// ================= QUIZ FUNCTIONS =================
 function startQuiz(){
   const name = document.getElementById("userName").value.trim();
-  if(!name){ alert("Please enter your name"); return; }
-  document.getElementById("user-form").style.display="none";
-  document.getElementById("quiz-area").style.display="block";
-  renderNav(); renderQuestion(); startTimer();
+  if(!name){ alert("Enter your name"); return; }
+  loadQuestions().then(()=>{
+    if(questions.length===0){ alert("No questions found!"); return; }
+    document.getElementById("user-form").style.display="none";
+    document.getElementById("quiz-area").style.display="block";
+    renderNav(); renderQuestion(); startTimer();
+  });
 }
+
+function toggleNav(){ document.getElementById("question-nav").classList.toggle("hidden"); }
 
 function renderNav(){
   const nav = document.getElementById("question-nav");
@@ -140,16 +151,11 @@ function renderQuestion(){
 function selectOpt(i){ if(submitted) return; answers[current]=i; renderNav(); }
 function nextQuestion(){ if(current<questions.length-1){ current++; renderQuestion(); } }
 function prevQuestion(){ if(current>0){ current--; renderQuestion(); } }
-
-function updateStats(){
-  const a = answers.filter(x=>x!==null).length;
-  document.getElementById("answered").textContent="Answered: "+a;
-  document.getElementById("not-answered").textContent="Not answered: "+(questions.length-a);
-}
+function updateStats(){ const a=answers.filter(x=>x!==null).length; document.getElementById("answered").textContent="Answered: "+a; document.getElementById("not-answered").textContent="Not answered: "+(questions.length-a); }
 
 function startTimer(){
   updateTimer();
-  timerInterval = setInterval(()=>{ timeLeft--; updateTimer(); if(timeLeft<=0){ clearInterval(timerInterval); submitQuiz(); } },1000);
+  timerInterval=setInterval(()=>{ timeLeft--; updateTimer(); if(timeLeft<=0){ clearInterval(timerInterval); submitQuiz(); } },1000);
 }
 
 function updateTimer(){
