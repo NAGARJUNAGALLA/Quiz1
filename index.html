@@ -17,11 +17,9 @@ window.MathJax = {
 <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" async></script>
 
 <style>
-body {
-  margin: 0; font-family: 'Segoe UI', sans-serif; background: #f5f7fa; overflow-x: hidden;
-}
-.quiz-container { max-width: 800px; margin: 0 auto; padding: 20px; }
-h1,h3 { color: #1E90FF; text-align:center; }
+body { margin:0; font-family: 'Segoe UI', sans-serif; background: #f5f7fa; }
+.quiz-container { max-width:800px; margin:0 auto; padding:20px; }
+h1,h3 { color:#1E90FF; text-align:center; }
 input, button { font-size:16px; }
 #user-form { text-align:center; margin-top:80px; }
 button { cursor:pointer; }
@@ -69,26 +67,37 @@ button { cursor:pointer; }
 </div>
 
 <script>
-// ==== CONFIG ====
-const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/1qRFUQ_S_7pK_mb-cZb30CwcN6Gkb91A25Eq2JMefZNo/pub?output=csv"; // Replace with your CSV published URL
+// ================= CONFIG =================
+const SHEET_JSON_URL = "https://docs.google.com/spreadsheets/d/1qRFUQ_S_7pK_mb-cZb30CwcN6Gkb91A25Eq2JMefZNo/gviz/tq?tqx=out:json"; // Replace YOUR_SHEET_ID
+//https://docs.google.com/spreadsheets/d/ 1qRFUQ_S_7pK_mb-cZb30CwcN6Gkb91A25Eq2JMefZNo /edit?usp=drivesdk
 let questions=[], current=0, answers=[], submitted=false, timeLeft=0, timerInterval;
 
-// ==== LOAD QUESTIONS FROM SHEET ====
+// ============== LOAD QUESTIONS FROM SHEET =================
 async function loadQuestions(){
-  const res = await fetch(SHEET_CSV_URL);
-  const text = await res.text();
-  const rows = text.trim().split("\n");
-  questions = rows.slice(1).map(r=>{
-    const cols = r.split(","); // Simple CSV split
-    return { q: cols[0], options: [cols[1], cols[2], cols[3], cols[4]], answerId: parseInt(cols[5]) };
-  });
-  answers = Array(questions.length).fill(null);
-  timeLeft = questions.length * 60;
-  document.getElementById("user-form").style.display="block";
+  try {
+    const res = await fetch(SHEET_JSON_URL);
+    let text = await res.text();
+    text = text.substring(text.indexOf("{"), text.lastIndexOf("}")+1);
+    const data = JSON.parse(text);
+    questions = data.table.rows.map(r=>{
+      return {
+        q: r.c[0].v,
+        options: [r.c[1].v, r.c[2].v, r.c[3].v, r.c[4].v],
+        answerId: r.c[5].v
+      };
+    });
+    answers = Array(questions.length).fill(null);
+    timeLeft = questions.length * 60;
+    document.getElementById("user-form").style.display="block";
+  } catch(e) {
+    console.error("Error loading questions:", e);
+    alert("Failed to load questions. Check sheet URL or network.");
+  }
 }
+
 window.onload = loadQuestions;
 
-// ==== QUIZ FUNCTIONS ====
+// ============== QUIZ FUNCTIONS =================
 function startQuiz(){
   const name = document.getElementById("userName").value.trim();
   if(!name){ alert("Please enter your name"); return; }
@@ -171,5 +180,6 @@ function submitQuiz(){
   renderQuestion();
 }
 </script>
+
 </body>
 </html>
